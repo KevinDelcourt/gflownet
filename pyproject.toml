@@ -63,6 +63,10 @@ tree = [
     "torch-geometric >=2.6.1",
 ]
 
+activelearning = [
+    "ioh >=0.3.22",
+]
+
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"

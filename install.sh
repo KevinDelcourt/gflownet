@@ -8,7 +8,7 @@ EXTRAS="all"
 DRY_RUN=0
 
 # Allowed extras set
-ALL_EXTRAS=("dev" "materials" "molecules" "tree")
+ALL_EXTRAS=("dev" "materials" "molecules" "tree" "activelearning")
 VALID_EXTRAS=("${ALL_EXTRAS[@]}" "minimal" "all")
 
 # Display help message and exit if --help is in the arguments

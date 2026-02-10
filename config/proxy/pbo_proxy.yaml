@@ -1,0 +1,3 @@
+_target_: gflownet.proxy.pbo_proxy.PBOProxy
+
+model_path: None

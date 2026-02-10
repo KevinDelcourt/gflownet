@@ -1,0 +1,8 @@
+defaults:
+  - base
+
+_target_: gflownet.envs.nd_env.environment.NDEnv
+
+id: nd_env
+
+dim_profile: None

@@ -64,7 +64,7 @@ tree = [
 ]
 
 activelearning = [
-    "ioh >=0.3.22",
+    "ioh >=0.3.10",
 ]
 
 [build-system]

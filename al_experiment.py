@@ -19,7 +19,8 @@ import zipfile
 
 from al_experiments.al_models.ucb_sampling_rf import ucb_sampling_rf
 from al_experiments.al_models.random_sampling import random_sampling
-from al_experiments.al_models.latin_hypercube_sampling import latin_hypercube_sampling
+from al_experiments.al_models.latin_hypercube_sampling import latin_hypercube_sampling, sample
+from al_experiments.initial_design_of_experiment import generate_initial_data
 from al_experiments.pbo import generate_random_data, integer_list_to_binary_list
 from al_experiments.train_proxy import train_random_forest, save_model
 from al_experiments.al_models.gfn import train_and_sample_gfn
@@ -79,17 +80,17 @@ def main(config):
 
 
                 problem = get_problem(problem_name, instance_id, size_int, ProblemClass.PBO)
-                initial_X, initial_y = generate_random_data(
-                    pbo_problem=problem,
-                    dim_profile=dim_profile,
-                    n_samples=config.pbo_al_experiment.initial_dataset_size
-                )
+
+                initial_X = generate_initial_data(dim_profile, n_samples=config.pbo_al_experiment.initial_dataset_size)
+                initial_y = [problem(integer_list_to_binary_list(x, dim_profile)) for x in initial_X]#type: ignore
+
+                #initial_X, initial_y = generate_random_data(pbo_problem=problem, dim_profile=dim_profile, n_samples=config.pbo_al_experiment.initial_dataset_size)
 
                 os.makedirs(os.path.join(main_log_dir, f"{problem_name}",f"instance_{instance_id}", f"size_{size}"), exist_ok=True)
 
                 dct = {"x": initial_X, "y": initial_y}
                 pickle.dump(dct, open(os.path.join(main_log_dir, f"{problem_name}",f"instance_{instance_id}", f"size_{size}", f"initial_data.pkl"), "wb"))
-                dct["x"] = [''.join(x.astype(str)) for x in dct["x"]]
+                dct["x"] = [' '.join(str(x)) for x in dct["x"]]
                 df = pd.DataFrame(dct)
                 df.to_csv(os.path.join(main_log_dir, f"{problem_name}",f"instance_{instance_id}", f"size_{size}", f"initial_data.csv"))
 
@@ -128,14 +129,15 @@ def main(config):
                     )
 
                     al_result_log_paths.append(os.path.join(config.logger.logdir.path, "al_results"))
-
                     problem.attach_logger(logger)
                     
                     for repeat in range(config.pbo_al_experiment.n_al_repeats):
                         print(f"\n--- AL repeat {repeat+1}/{config.pbo_al_experiment.n_al_repeats} ---")
                         config.logger.logdir.path = os.path.join(main_log_dir, f"{problem_name}",f"instance_{instance_id}", f"size_{size}", f"{model_name}", f"repeat_{repeat}") 
+                        problem.reset()
                         run_al_experiment(model_name, config, problem, initial_X, initial_y, tmp_proxy_path=os.path.join(config.logger.logdir.path, f"tmp_proxy.pkl"))
                         config.proxy.model_path = initial_proxy_path
+                    problem.reset()
 
     with zipfile.ZipFile(os.path.join(main_log_dir, "al_experiment_results.zip"), 'w') as zipf:
         for log_path in al_result_log_paths:
@@ -172,10 +174,8 @@ def check_config(config):
 def run_al_experiment(model_name, config, problem, initial_X, initial_y, tmp_proxy_path=None):
     root = config.logger.logdir.path
     
-    problem.reset()
-    
     visited = {
-        "X": deepcopy(initial_X).tolist(),
+        "X": deepcopy(initial_X),
         "y": deepcopy(initial_y)
     }
 

@@ -9,29 +9,29 @@ defaults:
 
 # Active Learning experiment settings
 pbo_al_experiment:
-  initial_dataset_size: 100
+  initial_dataset_size: 50
   problems:
     - name: OneMax
       instances: 
         - id : 3
-          problem_sizes: [20]
+          problem_sizes: [[5,5,5,5,5]]
           #problem_sizes: [20, [2,2,2,2,2,2,2,2,2,2], [4,4,4,4,4], [5,5,5,5], [10,10], [20]]
 #        - id : 2
 #          problem_sizes: [10,15]
-#    - name: LeadingOnes
-#      instances: 
-#        - id : 1
-#          problem_sizes: [10,15]
+    - name: LeadingOnes
+      instances: 
+        - id : 10
+          problem_sizes: [[5,5,5,5,5]]
 #        - id : 2
 #          problem_sizes: [10,15]
   active_learning_models:
-#    - gflownet
-#    - random
-#    - latin_hypercube
+    - gflownet
+    - random
+    - latin_hypercube
     - ucb_rf
-  active_learning_iterations: 10
+  active_learning_iterations: 20
   n_samples_per_al_iteration: 50
-  n_al_repeats: 1
+  n_al_repeats: 5
 
 
 
@@ -46,11 +46,11 @@ gflownet:
   random_action_prob: 0.1
   optimizer:
     batch_size:
-      forward: 100
+      forward: 10
     lr: 0.0001
     z_dim: 16
     lr_z_mult: 100
-    n_train_steps: 0 #3000
+    n_train_steps: 1500
 
 # Policy
 policy:

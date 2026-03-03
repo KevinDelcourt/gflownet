@@ -22,8 +22,10 @@ from al_experiments.al_models.random_sampling import random_sampling
 from al_experiments.al_models.latin_hypercube_sampling import latin_hypercube_sampling, sample
 from al_experiments.initial_design_of_experiment import generate_initial_data
 from al_experiments.pbo import generate_random_data, integer_list_to_binary_list
+from al_experiments.proxy.pbo_model import PBOModelProxy
 from al_experiments.train_proxy import train_random_forest, save_model
 from al_experiments.al_models.gfn import train_and_sample_gfn
+from al_experiments.proxy.pbo_proxy_random_forest import PBOProxyRandomForest
 
 MODELS = {
     "gflownet": {
@@ -46,6 +48,11 @@ MODELS = {
         "model_name": "UCB Sampling with Random Forest",
         "model_info": "Upper Confidence Bound sampling adapted for Random Forest regression models, with beta=1.0"
     }
+}
+
+PROXIES = {
+    "pbo_proxy" : PBOProxyRandomForest,
+    "pbo_model" : PBOModelProxy
 }
 
 @hydra.main(config_path="./config", config_name="al-experiment", version_base="1.1")
@@ -94,20 +101,18 @@ def main(config):
                 df = pd.DataFrame(dct)
                 df.to_csv(os.path.join(main_log_dir, f"{problem_name}",f"instance_{instance_id}", f"size_{size}", f"initial_data.csv"))
 
-                initial_proxy = train_random_forest(initial_X, initial_y)
-
-                initial_proxy_path = os.path.join(main_log_dir, f"{problem_name}",f"instance_{instance_id}", f"size_{size}", f"initial_proxy.pkl")
-                save_model(
-                    model=initial_proxy,
-                    filepath=initial_proxy_path,
-                    metadata={
-                        "problem_name": problem_name,
-                        "problem_instance": instance_id,
-                        "problem_size": size,
-                    }
+                proxy = PROXIES[config.proxy.name](
+                    main_log_dir=main_log_dir,
+                    problem_name=problem_name,
+                    instance_id=instance_id,
+                    size=size,
+                    size_int=size_int,
+                    config=config,
+                    initial_X=initial_X,
+                    initial_y=initial_y,
+                    dim_profile=dim_profile
                 )
-                
-                config.proxy.model_path = initial_proxy_path
+
                 config.env.dim_profile = dim_profile
             
 
@@ -135,8 +140,8 @@ def main(config):
                         print(f"\n--- AL repeat {repeat+1}/{config.pbo_al_experiment.n_al_repeats} ---")
                         config.logger.logdir.path = os.path.join(main_log_dir, f"{problem_name}",f"instance_{instance_id}", f"size_{size}", f"{model_name}", f"repeat_{repeat}") 
                         problem.reset()
-                        run_al_experiment(model_name, config, problem, initial_X, initial_y, tmp_proxy_path=os.path.join(config.logger.logdir.path, f"tmp_proxy.pkl"))
-                        config.proxy.model_path = initial_proxy_path
+                        run_al_experiment(model_name, config, problem, proxy, initial_X, initial_y)
+                        proxy.reset()
                     problem.reset()
 
     with zipfile.ZipFile(os.path.join(main_log_dir, "al_experiment_results.zip"), 'w') as zipf:
@@ -171,7 +176,7 @@ def check_config(config):
 
 
 
-def run_al_experiment(model_name, config, problem, initial_X, initial_y, tmp_proxy_path=None):
+def run_al_experiment(model_name, config, problem, proxy, initial_X, initial_y):
     root = config.logger.logdir.path
     
     visited = {
@@ -185,29 +190,12 @@ def run_al_experiment(model_name, config, problem, initial_X, initial_y, tmp_pro
         config.logger.logdir.path = os.path.join(root, f"iteration_{it+1}")
         os.makedirs(config.logger.logdir.path, exist_ok=True)
 
-        samples_x, samples_y = MODELS[model_name]["sample"](config, visited)
+        samples_x, samples_y = MODELS[model_name]["sample"](config, visited, proxy)
 
         visited["X"] += samples_x
         visited["y"] += problem([integer_list_to_binary_list(x, config.env.dim_profile) for x in samples_x])    
 
-        updated_proxy = train_random_forest(visited["X"], visited["y"])
-
-        if tmp_proxy_path is None:
-            updated_proxy_path = os.path.join(config.logger.logdir.path, f"updated_proxy.pkl")
-        else:
-            updated_proxy_path = tmp_proxy_path
-        
-        save_model(
-            model=updated_proxy,
-            filepath=updated_proxy_path,
-            metadata={
-                "problem_name": problem.meta_data.name,
-                "problem_instance": problem.meta_data.instance,
-                "problem_size": problem.meta_data.n_variables,
-            }
-        )
-
-        config.proxy.model_path = updated_proxy_path
+        proxy.update(visited_X=visited["X"], visited_y=visited["y"])
         
 
 if __name__ == "__main__":

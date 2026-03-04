@@ -1,3 +1,4 @@
+from al_experiments.pbo import integer_list_to_binary_list
 from al_experiments.proxy.al_xp_proxy import AlXPProxy
 from ioh import get_problem, ProblemClass
 
@@ -19,4 +20,4 @@ class PBOModelProxy(AlXPProxy):
         self.problem = get_problem(self.problem_name, self.instance_id, self.size_int, ProblemClass.PBO)
 
     def predict(self, samples_x):
-        return [self.problem(x) for x in samples_x]
+        return [self.problem(integer_list_to_binary_list(x, self.dim_profile)) for x in samples_x]#type: ignore

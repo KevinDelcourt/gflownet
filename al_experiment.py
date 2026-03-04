@@ -2,11 +2,13 @@
 Runnable script with hydra capabilities
 """
 
+import itertools
 import os
 import pickle
 import random
 import sys
 from copy import deepcopy
+from turtle import distance
 
 import hydra
 from hydra.core.hydra_config import HydraConfig
@@ -14,6 +16,8 @@ from ioh import ProblemClass, get_problem
 import ioh
 import pandas as pd
 from omegaconf import OmegaConf, open_dict
+import numpy as np
+
 
 import zipfile
 
@@ -130,7 +134,8 @@ def main(config):
                         folder_name="al_results",
                         algorithm_name=MODELS[model_name]["model_name"],
                         algorithm_info=MODELS[model_name]["model_info"],
-                        store_positions=True
+                        store_positions=True,
+                        triggers=[ioh.logger.trigger.ALWAYS],
                     )
 
                     al_result_log_paths.append(os.path.join(config.logger.logdir.path, "al_results"))
@@ -184,6 +189,13 @@ def run_al_experiment(model_name, config, problem, proxy, initial_X, initial_y):
         "y": deepcopy(initial_y)
     }
 
+    metrics = {
+        "estimated_usefulness": [],
+        "true_usefulness": [],
+        "diversity": [],
+        "novelty": []
+    }
+
     for it in range(config.pbo_al_experiment.active_learning_iterations):
         print(f"\n=== Active Learning iteration {it+1}/{config.pbo_al_experiment.active_learning_iterations} ===")
 
@@ -191,11 +203,25 @@ def run_al_experiment(model_name, config, problem, proxy, initial_X, initial_y):
         os.makedirs(config.logger.logdir.path, exist_ok=True)
 
         samples_x, samples_y = MODELS[model_name]["sample"](config, visited, proxy)
+        true_y = problem([integer_list_to_binary_list(x, config.env.dim_profile) for x in samples_x])
+
+        metrics["estimated_usefulness"].append(sum(samples_y)/len(samples_y))
+        metrics["true_usefulness"].append(sum(true_y)/len(true_y))
+
+        all_pairs_within_samples_x = itertools.combinations(samples_x, 2)
+        diversity = sum(np.linalg.norm(np.array(x)-np.array(y)) for x, y in all_pairs_within_samples_x if x != y) / (len(samples_x) * (len(samples_x) - 1))
+        metrics["diversity"].append(diversity)
+
+        novelty = sum(([min([np.linalg.norm(np.array(sample)-np.array(visited)) for visited in visited["X"]]) for sample in samples_x])) / len(samples_x) 
+        metrics["novelty"].append(novelty)
 
         visited["X"] += samples_x
-        visited["y"] += problem([integer_list_to_binary_list(x, config.env.dim_profile) for x in samples_x])    
+        visited["y"] += true_y  
 
         proxy.update(visited_X=visited["X"], visited_y=visited["y"])
+
+    print("Metrics:", metrics)
+    pd.DataFrame(metrics).to_csv(os.path.join(root, f"metrics.csv"), index=False)
         
 
 if __name__ == "__main__":

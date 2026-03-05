@@ -8,7 +8,6 @@ import pickle
 import random
 import sys
 from copy import deepcopy
-from turtle import distance
 
 import hydra
 from hydra.core.hydra_config import HydraConfig
